@@ -2,6 +2,13 @@
 name = "intern-all"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/lbfalvy/intern-all"
+keywords = ["parsing", "strings", "interner", "nounsafe"]
+authors = ["Lawrence Bethlenfalvy <lbfalvy@protonmail.com>"]
+description = """
+A simplistic but safe and predictable interner for data of mixed and arbitrary type
+"""
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -35,6 +35,7 @@
 //! // Intern a list of the borrowed form of internable values
 //! let v3: Tok<Vec<Tok<String>>> = i.ibv(["bar", "quz", "quux"]);
 //! ```
+#[warn(unsafe_code)]
 mod interner;
 mod token;
 mod typed_interner;
