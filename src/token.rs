@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::cmp::PartialEq;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
@@ -6,25 +7,27 @@ use std::ops::Deref;
 use std::sync::{Arc, Weak};
 
 #[allow(unused)] // for doc
-use super::Interner;
-use super::TypedInterner;
+use super::interner::Interner;
+use super::typed_interner::TypedInterner;
+use crate::global::{self, ev};
 
-/// A number representing an object of type `T` stored in some interner.
-/// Equality comparison costs two pointer comparisons. Ordering is by pointer
-/// value.
+/// A shared instance. Equality comparison costs two pointer comparisons.
+/// Ordering is by pointer value.
 ///
 /// # Panics
 ///
-/// Comparison panics if values from different interners are involved. Since a
-/// given [Interner] uses a single [TypedInterner] for each type, this is only
-/// possible if either multiple [Interner] or [TypedInterner] instances are
-/// constructed.
+/// If an interner was manually constructed, tokens from different interners
+/// cannot be compared and attempting to do so causes a panic.
+///
+/// Since a given [Interner] uses a single [TypedInterner] for each type, this
+/// is only possible if an [Interner] or [TypedInterner] was constructed besides
+/// the singleton.
 #[derive(Clone)]
-pub struct Tok<T: Eq + Hash + Clone + 'static> {
+pub struct Tok<T: Eq + Hash + Clone + Send + Sync + 'static> {
   data: Arc<T>,
   interner: Arc<TypedInterner<T>>,
 }
-impl<T: Eq + Hash + Clone + 'static> Tok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> Tok<T> {
   /// Create a new token. Used exclusively by the interner
   #[must_use]
   pub(crate) fn new(data: Arc<T>, interner: Arc<TypedInterner<T>>) -> Self {
@@ -54,92 +57,89 @@ impl<T: Eq + Hash + Clone + 'static> Tok<T> {
       "Tokens must come from the same interner"
     );
   }
-  /// Get the interner that owns this token. It is safe to use this even if the
-  /// token was created with [Interner].
+  /// Get the typed interner that owns this token.
   pub fn interner(&self) -> Arc<TypedInterner<T>> { self.interner.clone() }
+
+  pub fn i<Q>(q: &Q) -> Self
+  where
+    Q: ?Sized + Eq + Hash + ToOwned<Owned = T>,
+    T: Borrow<Q>,
+  {
+    global::i(q)
+  }
 }
 
-impl<T: Eq + Hash + Clone + 'static> Tok<Vec<Tok<T>>> {
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> Tok<Vec<Tok<T>>> {
   /// Extern all elements of the vector in a new vector. If the vector itself
-  /// isn't interned, use [Interner::ev]
-  pub fn ev(&self) -> Vec<T> { Interner::ev(&self[..]) }
+  /// isn't interned, use [ev]
+  pub fn ev(&self) -> Vec<T> { ev(&self[..]) }
 }
 
 impl<T: Eq + Hash + Clone + Send + Sync + 'static> Tok<Vec<Tok<T>>> {
   /// Add a suffix to the interned vector
-  pub fn append<'a>(
-    &self,
-    i: &Interner,
-    suffix: impl IntoIterator<Item = &'a T>,
-  ) -> Self {
-    let v = (self.iter().cloned())
-      .chain(suffix.into_iter().map(|t| i.i(t)))
-      .collect::<Vec<_>>();
-    i.i(&v)
+  pub fn append(&self, suffix: impl IntoIterator<Item = Tok<T>>) -> Self {
+    let i = self.interner();
+    i.i(&self.iter().cloned().chain(suffix).collect::<Vec<_>>())
   }
 
   /// Add a prefix to the interned vector
-  pub fn prepend<'a>(
-    &self,
-    i: &Interner,
-    prefix: impl IntoIterator<Item = &'a T>,
-  ) -> Self {
-    let v = (prefix.into_iter().map(|t| i.i(t)))
-      .chain(self.iter().cloned())
-      .collect::<Vec<_>>();
-    i.i(&v)
+  pub fn prepend(&self, prefix: impl IntoIterator<Item = Tok<T>>) -> Self {
+    let i = self.interner();
+    i.i(&prefix.into_iter().chain(self.iter().cloned()).collect::<Vec<_>>())
   }
 }
 
-impl<T: Eq + Hash + Clone + 'static> Deref for Tok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> Deref for Tok<T> {
   type Target = T;
 
   fn deref(&self) -> &Self::Target { self.data.as_ref() }
 }
 
-impl<T: Eq + Hash + Clone + 'static + Debug> Debug for Tok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + Debug + 'static> Debug for Tok<T> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "Token({} -> {:?})", self.id(), self.data.as_ref())
   }
 }
 
-impl<T: Eq + Hash + Clone + Display + 'static> Display for Tok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + Display + 'static> Display
+  for Tok<T>
+{
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", **self)
   }
 }
 
-impl<T: Eq + Hash + Clone + 'static> Eq for Tok<T> {}
-impl<T: Eq + Hash + Clone + 'static> PartialEq for Tok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> Eq for Tok<T> {}
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> PartialEq for Tok<T> {
   fn eq(&self, other: &Self) -> bool {
     self.assert_comparable(other);
     self.id() == other.id()
   }
 }
 
-impl<T: Eq + Hash + Clone + 'static> Ord for Tok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> Ord for Tok<T> {
   fn cmp(&self, other: &Self) -> std::cmp::Ordering {
     self.assert_comparable(other);
     self.id().cmp(&other.id())
   }
 }
-impl<T: Eq + Hash + Clone + 'static> PartialOrd for Tok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> PartialOrd for Tok<T> {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
     Some(self.cmp(other))
   }
 }
 
-impl<T: Eq + Hash + Clone + 'static> Hash for Tok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> Hash for Tok<T> {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     state.write_usize(self.usize())
   }
 }
 
-pub struct WeakTok<T: Eq + Hash + Clone + 'static> {
+pub struct WeakTok<T: Eq + Hash + Clone + Send + Sync + 'static> {
   data: Weak<T>,
   interner: Weak<TypedInterner<T>>,
 }
-impl<T: Eq + Hash + Clone + 'static> WeakTok<T> {
+impl<T: Eq + Hash + Clone + Send + Sync + 'static> WeakTok<T> {
   pub fn new(tok: &Tok<T>) -> Self {
     Self {
       data: Arc::downgrade(&tok.data),

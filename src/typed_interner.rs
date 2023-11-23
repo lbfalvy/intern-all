@@ -10,10 +10,10 @@ use super::token::{Tok, WeakTok};
 /// are employed and the interner uses the default allocator. This and the use
 /// of weak references means that a long-lived instance can be kept around with
 /// regular calls to [TypedInterner::sweep].
-pub struct TypedInterner<T: 'static + Eq + Hash + Clone> {
+pub struct TypedInterner<T: 'static + Eq + Hash + Clone + Send + Sync> {
   tokens: RwLock<HashMap<Arc<T>, WeakTok<T>>>,
 }
-impl<T: Eq + Hash + Clone> TypedInterner<T> {
+impl<T: Eq + Hash + Clone + Send + Sync> TypedInterner<T> {
   /// Create a fresh interner instance
   #[must_use]
   pub fn new() -> Arc<Self> {
@@ -32,11 +32,9 @@ impl<T: Eq + Hash + Clone> TypedInterner<T> {
 
   /// Intern an object, returning a token
   #[must_use]
-  pub fn i<Q: ?Sized + Eq + Hash + ToOwned<Owned = T>>(
-    self: &Arc<Self>,
-    q: &Q,
-  ) -> Tok<T>
+  pub fn i<Q>(self: &Arc<Self>, q: &Q) -> Tok<T>
   where
+    Q: ?Sized + Eq + Hash + ToOwned<Owned = T>,
     T: Borrow<Q>,
   {
     let mut tokens = self.tokens.write().unwrap();

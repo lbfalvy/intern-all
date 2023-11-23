@@ -36,8 +36,9 @@ impl Interner {
 
   /// Intern something
   #[must_use]
-  pub fn i<Q: ?Sized + Eq + Hash + ToOwned>(&self, q: &Q) -> Tok<Q::Owned>
+  pub fn i<Q>(&self, q: &Q) -> Tok<Q::Owned>
   where
+    Q: ?Sized + Eq + Hash + ToOwned,
     Q::Owned: 'static + Eq + Hash + Clone + Borrow<Q> + Send + Sync,
   {
     let mut interners = self.interners.lock().unwrap();
@@ -45,28 +46,17 @@ impl Interner {
     interner.i(q)
   }
 
-  /// Fully resolve a list of interned things. If the list is interned, use
-  /// [Tok::ev]
-  #[must_use]
-  pub fn ev<'a, T: 'static + Eq + Hash + Clone>(
-    s: impl IntoIterator<Item = &'a Tok<T>>,
-  ) -> Vec<T> {
-    s.into_iter().map(|t| (**t).clone()).collect()
-  }
-
   /// Sweep values of a specific type. Useful if you just
   /// constructed a large number of values of a specific type, otherwise use
   /// [Interner::sweep]
-  pub fn sweep_type<T: Eq + Hash + Clone + Send + Sync + 'static>(
-    &self,
-  ) -> usize {
+  pub fn sweep_t<T: Eq + Hash + Clone + Send + Sync + 'static>(&self) -> usize {
     match self.interners.lock().unwrap().get(&TypeId::of::<T>()) {
       None => 0,
       Some(interner) => interner.sweep(),
     }
   }
 
-  /// Sweep all interners
+  /// Sweep all values not referenced by anything other than the interner.
   pub fn sweep(&self) -> usize {
     self.interners.lock().unwrap().values().map(|v| v.sweep()).sum()
   }
@@ -80,11 +70,12 @@ impl Interner {
   }
 
   /// Intern a list of borrowed items. See also [Interner::iv]
-  pub fn ibv<'a, Q: ?Sized + Eq + Hash + ToOwned + 'a>(
+  pub fn ibv<'a, Q>(
     &self,
     s: impl IntoIterator<Item = &'a Q>,
   ) -> Tok<Vec<Tok<Q::Owned>>>
   where
+    Q: ?Sized + Eq + Hash + ToOwned + 'a,
     Q::Owned: Eq + Hash + Clone + Send + Sync,
   {
     self.i(&s.into_iter().map(|t| self.i(t)).collect::<Vec<_>>())
