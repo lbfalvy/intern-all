@@ -8,6 +8,7 @@ use hashbrown::HashMap;
 
 use super::token::Tok;
 use super::typed_interner::TypedInterner;
+use crate::token::Internable;
 
 /// Operations that can be executed on [TypedInterner] without knowing its
 /// concrete type
@@ -16,9 +17,7 @@ pub trait AnyInterner: Send + Sync {
   fn sweep(&self) -> usize;
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> AnyInterner
-  for TypedInterner<T>
-{
+impl<T: Internable> AnyInterner for TypedInterner<T> {
   fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> { self }
   fn sweep(&self) -> usize { TypedInterner::sweep(self) }
 }
@@ -39,7 +38,7 @@ impl Interner {
   pub fn i<Q>(&self, q: &Q) -> Tok<Q::Owned>
   where
     Q: ?Sized + Eq + Hash + ToOwned,
-    Q::Owned: 'static + Eq + Hash + Clone + Borrow<Q> + Send + Sync,
+    Q::Owned: Internable + Borrow<Q>,
   {
     let mut interners = self.interners.lock().unwrap();
     let interner = get_interner(&mut interners);
@@ -49,7 +48,7 @@ impl Interner {
   /// Sweep values of a specific type. Useful if you just
   /// constructed a large number of values of a specific type, otherwise use
   /// [Interner::sweep]
-  pub fn sweep_t<T: Eq + Hash + Clone + Send + Sync + 'static>(&self) -> usize {
+  pub fn sweep_t<T: Internable>(&self) -> usize {
     match self.interners.lock().unwrap().get(&TypeId::of::<T>()) {
       None => 0,
       Some(interner) => interner.sweep(),
@@ -62,7 +61,7 @@ impl Interner {
   }
 
   /// Intern a list and its elements. See also [Interner::ibv]
-  pub fn iv<T: 'static + Eq + Hash + Clone + Sync + Send>(
+  pub fn iv<T: Internable>(
     &self,
     s: impl IntoIterator<Item = T>,
   ) -> Tok<Vec<Tok<T>>> {
@@ -76,7 +75,7 @@ impl Interner {
   ) -> Tok<Vec<Tok<Q::Owned>>>
   where
     Q: ?Sized + Eq + Hash + ToOwned + 'a,
-    Q::Owned: Eq + Hash + Clone + Send + Sync,
+    Q::Owned: Internable,
   {
     self.i(&s.into_iter().map(|t| self.i(t)).collect::<Vec<_>>())
   }
@@ -88,7 +87,7 @@ impl Default for Interner {
 
 /// Get or create an interner for a given type
 #[must_use]
-fn get_interner<T: 'static + Eq + Hash + Clone + Send + Sync>(
+fn get_interner<T: Internable>(
   interners: &mut impl DerefMut<Target = HashMap<TypeId, Arc<dyn AnyInterner>>>,
 ) -> Arc<TypedInterner<T>> {
   let boxed = interners

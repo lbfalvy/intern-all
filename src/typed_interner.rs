@@ -4,16 +4,18 @@ use std::sync::{Arc, RwLock};
 
 use hashbrown::HashMap;
 
+use crate::token::Internable;
+
 use super::token::{Tok, WeakTok};
 
 /// An interner for any type that implements [Borrow]. Not many optimizations
 /// are employed and the interner uses the default allocator. This and the use
 /// of weak references means that a long-lived instance can be kept around with
 /// regular calls to [TypedInterner::sweep].
-pub struct TypedInterner<T: 'static + Eq + Hash + Clone + Send + Sync> {
+pub struct TypedInterner<T: Internable> {
   tokens: RwLock<HashMap<Arc<T>, WeakTok<T>>>,
 }
-impl<T: Eq + Hash + Clone + Send + Sync> TypedInterner<T> {
+impl<T: Internable> TypedInterner<T> {
   /// Create a fresh interner instance
   #[must_use]
   pub fn new() -> Arc<Self> {

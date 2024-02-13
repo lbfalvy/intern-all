@@ -6,10 +6,18 @@ use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::sync::{Arc, Weak};
 
+use trait_set::trait_set;
+
 #[allow(unused)] // for doc
 use super::interner::Interner;
 use super::typed_interner::TypedInterner;
 use crate::global::{self, ev};
+#[cfg(feature = "serde")]
+use crate::i;
+
+trait_set! {
+  pub trait Internable = Eq + Hash + Clone + Send + Sync + 'static;
+}
 
 /// A shared instance. Equality comparison costs two pointer comparisons.
 /// Ordering is by pointer value.
@@ -23,11 +31,11 @@ use crate::global::{self, ev};
 /// is only possible if an [Interner] or [TypedInterner] was constructed besides
 /// the singleton.
 #[derive(Clone)]
-pub struct Tok<T: Eq + Hash + Clone + Send + Sync + 'static> {
+pub struct Tok<T: Internable> {
   data: Arc<T>,
   interner: Arc<TypedInterner<T>>,
 }
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> Tok<T> {
+impl<T: Internable> Tok<T> {
   /// Create a new token. Used exclusively by the interner
   #[must_use]
   pub(crate) fn new(data: Arc<T>, interner: Arc<TypedInterner<T>>) -> Self {
@@ -69,13 +77,13 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> Tok<T> {
   }
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> Tok<Vec<Tok<T>>> {
+impl<T: Internable> Tok<Vec<Tok<T>>> {
   /// Extern all elements of the vector in a new vector. If the vector itself
   /// isn't interned, use [ev]
   pub fn ev(&self) -> Vec<T> { ev(&self[..]) }
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> Tok<Vec<Tok<T>>> {
+impl<T: Internable> Tok<Vec<Tok<T>>> {
   /// Add a suffix to the interned vector
   pub fn append(&self, suffix: impl IntoIterator<Item = Tok<T>>) -> Self {
     let i = self.interner();
@@ -89,7 +97,7 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> Tok<Vec<Tok<T>>> {
   }
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> Deref for Tok<T> {
+impl<T: Internable> Deref for Tok<T> {
   type Target = T;
 
   fn deref(&self) -> &Self::Target { self.data.as_ref() }
@@ -109,37 +117,37 @@ impl<T: Eq + Hash + Clone + Send + Sync + Display + 'static> Display
   }
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> Eq for Tok<T> {}
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> PartialEq for Tok<T> {
+impl<T: Internable> Eq for Tok<T> {}
+impl<T: Internable> PartialEq for Tok<T> {
   fn eq(&self, other: &Self) -> bool {
     self.assert_comparable(other);
     self.id() == other.id()
   }
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> Ord for Tok<T> {
+impl<T: Internable> Ord for Tok<T> {
   fn cmp(&self, other: &Self) -> std::cmp::Ordering {
     self.assert_comparable(other);
     self.id().cmp(&other.id())
   }
 }
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> PartialOrd for Tok<T> {
+impl<T: Internable> PartialOrd for Tok<T> {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
     Some(self.cmp(other))
   }
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> Hash for Tok<T> {
+impl<T: Internable> Hash for Tok<T> {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     state.write_usize(self.usize())
   }
 }
 
-pub struct WeakTok<T: Eq + Hash + Clone + Send + Sync + 'static> {
+pub struct WeakTok<T: Internable> {
   data: Weak<T>,
   interner: Weak<TypedInterner<T>>,
 }
-impl<T: Eq + Hash + Clone + Send + Sync + 'static> WeakTok<T> {
+impl<T: Internable> WeakTok<T> {
   pub fn new(tok: &Tok<T>) -> Self {
     Self {
       data: Arc::downgrade(&tok.data),
@@ -148,5 +156,27 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> WeakTok<T> {
   }
   pub fn upgrade(&self) -> Option<Tok<T>> {
     Some(Tok { data: self.data.upgrade()?, interner: self.interner.upgrade()? })
+  }
+}
+
+#[cfg(feature = "serde")]
+impl<T: serde::Serialize + Internable> serde::Serialize for Tok<T> {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: serde::Serializer,
+  {
+    self.data.serialize(serializer)
+  }
+}
+
+#[cfg(feature = "serde")]
+impl<'a, T: serde::Deserialize<'a> + Internable> serde::Deserialize<'a>
+  for Tok<T>
+{
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: serde::Deserializer<'a>,
+  {
+    T::deserialize(deserializer).map(|t| i(&t))
   }
 }
