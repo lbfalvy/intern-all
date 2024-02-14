@@ -56,23 +56,15 @@ impl Interner {
   }
 
   /// Sweep all values not referenced by anything other than the interner.
-  pub fn sweep(&self) -> usize {
-    self.interners.lock().unwrap().values().map(|v| v.sweep()).sum()
-  }
+  pub fn sweep(&self) -> usize { self.interners.lock().unwrap().values().map(|v| v.sweep()).sum() }
 
   /// Intern a list and its elements. See also [Interner::ibv]
-  pub fn iv<T: Internable>(
-    &self,
-    s: impl IntoIterator<Item = T>,
-  ) -> Tok<Vec<Tok<T>>> {
+  pub fn iv<T: Internable>(&self, s: impl IntoIterator<Item = T>) -> Tok<Vec<Tok<T>>> {
     self.i(&s.into_iter().map(|t| self.i(&t)).collect::<Vec<_>>())
   }
 
   /// Intern a list of borrowed items. See also [Interner::iv]
-  pub fn ibv<'a, Q>(
-    &self,
-    s: impl IntoIterator<Item = &'a Q>,
-  ) -> Tok<Vec<Tok<Q::Owned>>>
+  pub fn ibv<'a, Q>(&self, s: impl IntoIterator<Item = &'a Q>) -> Tok<Vec<Tok<Q::Owned>>>
   where
     Q: ?Sized + Eq + Hash + ToOwned + 'a,
     Q::Owned: Internable,
@@ -96,8 +88,7 @@ fn get_interner<T: Internable>(
     .or_insert_with(|| (TypeId::of::<T>(), TypedInterner::<T>::new()))
     .1
     .clone();
-  (Arc::downcast(boxed.as_any_arc()))
-    .expect("the typeid is supposed to protect from this")
+  (Arc::downcast(boxed.as_any_arc())).expect("the typeid is supposed to protect from this")
 }
 
 #[cfg(test)]

@@ -24,9 +24,7 @@ where
 /// Fully resolve a list of interned things. If the list is interned, use
 /// [Tok#ev]
 #[must_use]
-pub fn ev<'a, T: Internable>(
-  s: impl IntoIterator<Item = &'a Tok<T>>,
-) -> Vec<T> {
+pub fn ev<'a, T: Internable>(s: impl IntoIterator<Item = &'a Tok<T>>) -> Vec<T> {
   s.into_iter().map(|t| (**t).clone()).collect()
 }
 
@@ -40,9 +38,7 @@ pub fn sweep_t<T: Internable>() -> usize { SINGLETON.sweep_t::<T>() }
 pub fn sweep() -> usize { SINGLETON.sweep() }
 
 /// Intern a list and its elements in the global interner. See also [ibv]
-pub fn iv<T: Internable>(s: impl IntoIterator<Item = T>) -> Tok<Vec<Tok<T>>> {
-  SINGLETON.iv(s)
-}
+pub fn iv<T: Internable>(s: impl IntoIterator<Item = T>) -> Tok<Vec<Tok<T>>> { SINGLETON.iv(s) }
 
 /// Intern a list of borrowed items in the global interner. See also [iv]
 pub fn ibv<'a, Q>(s: impl IntoIterator<Item = &'a Q>) -> Tok<Vec<Tok<Q::Owned>>>

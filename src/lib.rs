@@ -25,8 +25,7 @@
 //! // Intern a list as a slice of tokens
 //! let v1: Tok<Vec<Tok<String>>> = i(&[i("bar"), i("quz"), i("quux")][..]);
 //! // Intern a list of internable values
-//! let v2: Tok<Vec<Tok<String>>> =
-//!   iv(["bar".to_string(), "quz".to_string(), "quux".to_string()]);
+//! let v2: Tok<Vec<Tok<String>>> = iv(["bar".to_string(), "quz".to_string(), "quux".to_string()]);
 //! // Intern a list of the borrowed form of internable values
 //! let v3: Tok<Vec<Tok<String>>> = ibv(["bar", "quz", "quux"]);
 //! assert!(v1 == v2 && v2 == v3)
@@ -57,7 +56,7 @@ mod token;
 mod typed_interner;
 
 pub use global::{ev, i, ibv, iv, sweep, sweep_t};
-pub use token::Tok;
+pub use token::{Internable, Tok};
 
 pub mod instance {
   //! The interner uses weak references and can be cleared with [sweep], but if

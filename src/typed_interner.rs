@@ -4,9 +4,8 @@ use std::sync::{Arc, RwLock};
 
 use hashbrown::HashMap;
 
-use crate::token::Internable;
-
 use super::token::{Tok, WeakTok};
+use crate::token::Internable;
 
 /// An interner for any type that implements [Borrow]. Not many optimizations
 /// are employed and the interner uses the default allocator. This and the use
@@ -18,18 +17,14 @@ pub struct TypedInterner<T: Internable> {
 impl<T: Internable> TypedInterner<T> {
   /// Create a fresh interner instance
   #[must_use]
-  pub fn new() -> Arc<Self> {
-    Arc::new(Self { tokens: RwLock::new(HashMap::new()) })
-  }
+  pub fn new() -> Arc<Self> { Arc::new(Self { tokens: RwLock::new(HashMap::new()) }) }
 
   /// Get the number of stored values
   pub fn size(self: &Arc<Self>) -> usize { self.tokens.read().unwrap().len() }
 
   /// Remove entries which are no longer referenced anywhere else
   pub fn sweep(&self) -> usize {
-    (self.tokens.write().unwrap())
-      .extract_if(|_, v| v.upgrade().is_none())
-      .count()
+    (self.tokens.write().unwrap()).extract_if(|_, v| v.upgrade().is_none()).count()
   }
 
   /// Intern an object, returning a token
@@ -40,7 +35,7 @@ impl<T: Internable> TypedInterner<T> {
     T: Borrow<Q>,
   {
     let mut tokens = self.tokens.write().unwrap();
-    let hash = compute_hash(tokens.hasher(), q);
+    let hash = tokens.hasher().hash_one(q);
     let mut ret: Option<Tok<T>> = None;
     tokens
       .raw_entry_mut()
@@ -57,16 +52,4 @@ impl<T: Internable> TypedInterner<T> {
       });
     ret.expect("One of the above callbacks must have ran")
   }
-}
-
-/// Helper function to compute hashes outside a hashmap
-#[must_use]
-fn compute_hash(
-  hash_builder: &impl BuildHasher,
-  key: &(impl Hash + ?Sized),
-) -> u64 {
-  use core::hash::Hasher;
-  let mut state = hash_builder.build_hasher();
-  key.hash(&mut state);
-  state.finish()
 }

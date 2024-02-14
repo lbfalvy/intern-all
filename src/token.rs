@@ -1,10 +1,9 @@
 use std::borrow::Borrow;
-use std::cmp::PartialEq;
-use std::fmt::{Debug, Display};
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::sync::{Arc, Weak};
+use std::{cmp, fmt};
 
 use trait_set::trait_set;
 
@@ -12,8 +11,6 @@ use trait_set::trait_set;
 use super::interner::Interner;
 use super::typed_interner::TypedInterner;
 use crate::global::{self, ev};
-#[cfg(feature = "serde")]
-use crate::i;
 
 trait_set! {
   pub trait Internable = Eq + Hash + Clone + Send + Sync + 'static;
@@ -59,11 +56,7 @@ impl<T: Internable> Tok<T> {
   pub fn usize(&self) -> usize { self.id().into() }
   /// Panic if the two tokens weren't created with the same interner
   pub fn assert_comparable(&self, other: &Self) {
-    assert_eq!(
-      self.interner_id(),
-      other.interner_id(),
-      "Tokens must come from the same interner"
-    );
+    assert_eq!(self.interner_id(), other.interner_id(), "Tokens must come from the same interner");
   }
   /// Get the typed interner that owns this token.
   pub fn interner(&self) -> Arc<TypedInterner<T>> { self.interner.clone() }
@@ -103,44 +96,36 @@ impl<T: Internable> Deref for Tok<T> {
   fn deref(&self) -> &Self::Target { self.data.as_ref() }
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + Debug + 'static> Debug for Tok<T> {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T: Internable + fmt::Debug> fmt::Debug for Tok<T> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "Token({} -> {:?})", self.id(), self.data.as_ref())
   }
 }
 
-impl<T: Eq + Hash + Clone + Send + Sync + Display + 'static> Display
-  for Tok<T>
-{
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}", **self)
-  }
+impl<T: Internable + fmt::Display> fmt::Display for Tok<T> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", **self) }
 }
 
 impl<T: Internable> Eq for Tok<T> {}
-impl<T: Internable> PartialEq for Tok<T> {
+impl<T: Internable> cmp::PartialEq for Tok<T> {
   fn eq(&self, other: &Self) -> bool {
     self.assert_comparable(other);
     self.id() == other.id()
   }
 }
 
-impl<T: Internable> Ord for Tok<T> {
-  fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+impl<T: Internable> cmp::Ord for Tok<T> {
+  fn cmp(&self, other: &Self) -> cmp::Ordering {
     self.assert_comparable(other);
     self.id().cmp(&other.id())
   }
 }
-impl<T: Internable> PartialOrd for Tok<T> {
-  fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-    Some(self.cmp(other))
-  }
+impl<T: Internable> cmp::PartialOrd for Tok<T> {
+  fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> { Some(self.cmp(other)) }
 }
 
 impl<T: Internable> Hash for Tok<T> {
-  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    state.write_usize(self.usize())
-  }
+  fn hash<H: Hasher>(&self, state: &mut H) { state.write_usize(self.usize()) }
 }
 
 pub struct WeakTok<T: Internable> {
@@ -149,10 +134,7 @@ pub struct WeakTok<T: Internable> {
 }
 impl<T: Internable> WeakTok<T> {
   pub fn new(tok: &Tok<T>) -> Self {
-    Self {
-      data: Arc::downgrade(&tok.data),
-      interner: Arc::downgrade(&tok.interner),
-    }
+    Self { data: Arc::downgrade(&tok.data), interner: Arc::downgrade(&tok.interner) }
   }
   pub fn upgrade(&self) -> Option<Tok<T>> {
     Some(Tok { data: self.data.upgrade()?, interner: self.interner.upgrade()? })
@@ -170,13 +152,11 @@ impl<T: serde::Serialize + Internable> serde::Serialize for Tok<T> {
 }
 
 #[cfg(feature = "serde")]
-impl<'a, T: serde::Deserialize<'a> + Internable> serde::Deserialize<'a>
-  for Tok<T>
-{
+impl<'a, T: serde::Deserialize<'a> + Internable> serde::Deserialize<'a> for Tok<T> {
   fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
   where
     D: serde::Deserializer<'a>,
   {
-    T::deserialize(deserializer).map(|t| i(&t))
+    T::deserialize(deserializer).map(|t| crate::i(&t))
   }
 }
