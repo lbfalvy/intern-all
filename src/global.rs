@@ -11,7 +11,22 @@ lazy_static! {
   static ref SINGLETON: Interner = Interner::new();
 }
 
-/// Intern something with the global interner
+/// Create a thread-local token instance and copy it. This ensures that the
+/// interner will only be called the first time the expresion is executed,
+/// and subsequent calls will just copy the token. Accepts a single static
+/// expression (i.e. a literal).
+#[macro_export]
+macro_rules! i {
+  ($name:expr) => {{
+    thread_local! {
+      static TOKEN: $crate::Tok<String> = $crate::i($name);
+    };
+    TOKEN.with(|v| v.clone())
+  }};
+}
+
+/// Intern something with the global interner. If Q is static, you should
+/// consider using the macro version of this function.
 #[must_use]
 pub fn i<Q>(q: &Q) -> Tok<Q::Owned>
 where
@@ -47,4 +62,14 @@ where
   Q::Owned: Internable,
 {
   SINGLETON.ibv(s)
+}
+
+#[cfg(test)]
+mod test {
+  #[test]
+  pub fn statics() {
+    let a = i!("foo");
+    let b = i!("foo");
+    assert!(a == b);
+  }
 }
