@@ -90,6 +90,14 @@ impl<T: Internable> Tok<Vec<Tok<T>>> {
   }
 }
 
+impl<T: Internable + AsRef<U>, U: ?Sized> AsRef<U> for Tok<T> {
+  fn as_ref(&self) -> &U { self.data.as_ref().as_ref() }
+}
+
+impl<T: Internable> Borrow<T> for Tok<T> {
+  fn borrow(&self) -> &T { self.data.as_ref().borrow() }
+}
+
 impl<T: Internable> Deref for Tok<T> {
   type Target = T;
 
@@ -158,5 +166,17 @@ impl<'a, T: serde::Deserialize<'a> + Internable> serde::Deserialize<'a> for Tok<
     D: serde::Deserializer<'a>,
   {
     T::deserialize(deserializer).map(|t| crate::i(&t))
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use crate::{i, Tok};
+
+  #[test]
+  fn impls_asref() {
+    fn foo(_: impl AsRef<str>) {}
+    let t: Tok<String> = i("Hello World!");
+    foo(t)
   }
 }
