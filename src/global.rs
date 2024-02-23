@@ -19,7 +19,7 @@ lazy_static! {
 macro_rules! i {
   ($ty:ty : $expr:expr) => {{
     thread_local! {
-      static VALUE: Tok<<$ty as ToOwned>::Owned> = $crate::i($expr as &$ty);
+      static VALUE: $crate::Tok<<$ty as ToOwned>::Owned> = $crate::i($expr as &$ty);
     }
     VALUE.with(|v| v.clone())
   }};
