@@ -17,9 +17,12 @@ lazy_static! {
 /// expression (i.e. a literal).
 #[macro_export]
 macro_rules! i {
-  ($name:expr) => {
-    $crate::tl_cache!($crate::i($name))
-  };
+  ($ty:ty : $expr:expr) => {{
+    thread_local! {
+      static VALUE: Tok<<$ty as ToOwned>::Owned> = $crate::i($expr as &$ty);
+    }
+    VALUE.with(|v| v.clone())
+  }};
 }
 
 /// Intern something with the global interner. If Q is static, you should
@@ -70,12 +73,12 @@ mod test {
 
   #[test]
   pub fn statics() {
-    let a = i!("foo");
-    let b = i!("foo");
+    let a = i!(str: "foo");
+    let b = i!(str: "foo");
     let c = i("foo");
     assert_eq!(a, b);
     assert_eq!(a, c);
-    let v = i!(&[i("foo"), i("bar"), i("baz")][..]);
+    let v = i!([Tok<String>]: &[i("foo"), i("bar"), i("baz")]);
     assert_eq!(type_name_of_val(&v), type_name::<Tok<Vec<Tok<String>>>>());
   }
 }

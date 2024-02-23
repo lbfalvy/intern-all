@@ -52,7 +52,6 @@
 mod global;
 #[warn(unsafe_code)]
 mod interner;
-mod tl_cache;
 mod token;
 mod typed_interner;
 
