@@ -17,12 +17,9 @@ lazy_static! {
 /// expression (i.e. a literal).
 #[macro_export]
 macro_rules! i {
-  ($name:expr) => {{
-    thread_local! {
-      static TOKEN: $crate::Tok<String> = $crate::i($name);
-    };
-    TOKEN.with(|v| v.clone())
-  }};
+  ($name:expr) => {
+    $crate::tl_cache!($crate::i($name))
+  };
 }
 
 /// Intern something with the global interner. If Q is static, you should
@@ -66,10 +63,19 @@ where
 
 #[cfg(test)]
 mod test {
+  use std::any::{type_name, type_name_of_val};
+
+  use super::i;
+  use crate::Tok;
+
   #[test]
   pub fn statics() {
     let a = i!("foo");
     let b = i!("foo");
-    assert!(a == b);
+    let c = i("foo");
+    assert_eq!(a, b);
+    assert_eq!(a, c);
+    let v = i!(&[i("foo"), i("bar"), i("baz")][..]);
+    assert_eq!(type_name_of_val(&v), type_name::<Tok<Vec<Tok<String>>>>());
   }
 }

@@ -38,7 +38,7 @@ dependencies = [
 
 [[package]]
 name = "intern-all"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "hashbrown",
  "lazy_static",
