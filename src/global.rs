@@ -81,4 +81,13 @@ mod test {
     let v = i!([Tok<String>]: &[i("foo"), i("bar"), i("baz")]);
     assert_eq!(type_name_of_val(&v), type_name::<Tok<Vec<Tok<String>>>>());
   }
+
+  #[test]
+  pub fn basics() {
+    let a1 = i!(str: "foo");
+    let a2 = i!(str: "foo");
+    let b = i!(str: "bar");
+    assert_eq!(a1, a2);
+    assert_ne!(a1, b);
+  }
 }
