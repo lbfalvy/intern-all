@@ -14,7 +14,6 @@ A safe and predictable interner for data of mixed and arbitrary type
 
 [dependencies]
 hashbrown = "0.14"
-lazy_static = "1.4"
 serde = { version = "1.0", optional = true }
 trait-set = "0.3"
 

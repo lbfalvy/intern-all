@@ -55,7 +55,7 @@ mod interner;
 mod token;
 mod typed_interner;
 
-pub use global::{ev, i, ibv, iv, sweep, sweep_t};
+pub use global::{ev, i, ibv, iv, sweep, sweep_t, get_global, set_global};
 pub use token::{Internable, Tok};
 
 pub mod instance {
